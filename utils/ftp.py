@@ -111,19 +111,18 @@ class FTPClient:
 class PositionManager:
     def __init__(self, max_concurrency: int):
         self.max_concurrency = max_concurrency
-        self.available_positions = list(range(max_concurrency))  # 可用位置列表
-        self.used_positions = {}  # 记录任务使用的位置 {task_id: position}
-        self.lock = asyncio.Lock()  # 用于线程安全的位置分配
+        self.available_positions = list(range(max_concurrency))
+        self.used_positions = {}
+        self.lock = asyncio.Lock()
 
     async def get_position(self, task_id: str) -> int:
         """获取一个可用位置"""
         async with self.lock:
             if not self.available_positions:
-                # 如果没有可用位置，返回当前最大位置+1
-                return max(self.used_positions.values()) + 1 if self.used_positions else 0
+                return max(self.used_positions.values()) + 1 if self.used_positions else 1
             position = self.available_positions.pop(0)
             self.used_positions[task_id] = position
-            return position
+            return position + 1
 
     async def release_position(self, task_id: str):
         """释放位置"""
@@ -189,7 +188,6 @@ class HTTPDownloader:
             download_file.parent.mkdir(parents=True, exist_ok=True)
             temp_file = download_file.parent / f'{filename}.download'
 
-            # 获取位置
             position = await self.position_manager.get_position(task_id)
 
             try:
@@ -230,7 +228,7 @@ class HTTPDownloader:
                     self.completed_files += 1
                     self.global_pbar.update(1)
 
-                return True
+                success = True
 
             except Exception:
                 if temp_file.exists():
@@ -240,10 +238,10 @@ class HTTPDownloader:
                     self.completed_files += 1
                     self.global_pbar.update(1)
 
-                return False
+                success = False
             finally:
-                # 确保在下载完成或失败时都释放位置
                 await self.position_manager.release_position(task_id)
+                return success
 
     async def download_files(
         self, base_url: str, remote_path: str, file_list: list[str], local_dir: str
@@ -264,17 +262,16 @@ class HTTPDownloader:
         self.total_files = len(file_list)
         self.completed_files = 0
 
-        # 将总体进度条放在最上方
-        position = len(file_list)
+        # 全局固定在位置0
         self.global_pbar = tqdm(
-            desc='总进度', total=self.total_files, unit='个文件', position=position, leave=True
+            desc='总进度', total=self.total_files, unit='个文件', position=0, leave=True
         )
 
         tasks = []
         for i, filename in enumerate(file_list):
             url = f'{base_url.strip("/")}/{remote_path.strip("/")}/{filename}'
             local_path = Path(local_dir) / filename
-            task_id = f"task_{i}"  # 为每个任务生成唯一ID
+            task_id = f'task_{i}'
 
             task = asyncio.create_task(self.download_file(url, local_path, task_id))
             tasks.append((filename, task))
