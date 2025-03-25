@@ -108,6 +108,32 @@ class FTPClient:
             return []
 
 
+class PositionManager:
+    def __init__(self, max_concurrency: int):
+        self.max_concurrency = max_concurrency
+        self.available_positions = list(range(max_concurrency))  # 可用位置列表
+        self.used_positions = {}  # 记录任务使用的位置 {task_id: position}
+        self.lock = asyncio.Lock()  # 用于线程安全的位置分配
+
+    async def get_position(self, task_id: str) -> int:
+        """获取一个可用位置"""
+        async with self.lock:
+            if not self.available_positions:
+                # 如果没有可用位置，返回当前最大位置+1
+                return max(self.used_positions.values()) + 1 if self.used_positions else 0
+            position = self.available_positions.pop(0)
+            self.used_positions[task_id] = position
+            return position
+
+    async def release_position(self, task_id: str):
+        """释放位置"""
+        async with self.lock:
+            if task_id in self.used_positions:
+                position = self.used_positions.pop(task_id)
+                if position < self.max_concurrency:  # 只回收原始并发范围内的位置
+                    self.available_positions.append(position)
+
+
 class HTTPDownloader:
     """HTTP文件下载器，支持异步并发下载"""
 
@@ -132,6 +158,7 @@ class HTTPDownloader:
         self.download_results: dict[str, bool] = {}
         self.failed_files: set[str] = set()
         self.session = None
+        self.position_manager = PositionManager(max_concurrency)
 
         self.global_pbar = None
         self.total_files = 0
@@ -142,14 +169,14 @@ class HTTPDownloader:
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout))
 
-    async def download_file(self, url: str, local_path: str | Path, position: int = 0) -> bool:
+    async def download_file(self, url: str, local_path: str | Path, task_id: str) -> bool:
         """
         异步下载单个文件
 
         Args:
             url: 文件URL
             local_path: 本地保存路径
-            position: 进度条位置，用于多文件下载时的进度条排列
+            task_id: 任务ID，用于位置管理
 
         Returns:
             bool: 下载是否成功
@@ -161,6 +188,9 @@ class HTTPDownloader:
 
             download_file.parent.mkdir(parents=True, exist_ok=True)
             temp_file = download_file.parent / f'{filename}.download'
+
+            # 获取位置
+            position = await self.position_manager.get_position(task_id)
 
             try:
                 async with self.session.get(url, allow_redirects=True) as response:
@@ -211,6 +241,9 @@ class HTTPDownloader:
                     self.global_pbar.update(1)
 
                 return False
+            finally:
+                # 确保在下载完成或失败时都释放位置
+                await self.position_manager.release_position(task_id)
 
     async def download_files(
         self, base_url: str, remote_path: str, file_list: list[str], local_dir: str
@@ -231,7 +264,8 @@ class HTTPDownloader:
         self.total_files = len(file_list)
         self.completed_files = 0
 
-        position = min(self.max_concurrency, len(file_list))
+        # 将总体进度条放在最上方
+        position = len(file_list)
         self.global_pbar = tqdm(
             desc='总进度', total=self.total_files, unit='个文件', position=position, leave=True
         )
@@ -240,27 +274,22 @@ class HTTPDownloader:
         for i, filename in enumerate(file_list):
             url = f'{base_url.strip("/")}/{remote_path.strip("/")}/{filename}'
             local_path = Path(local_dir) / filename
+            task_id = f"task_{i}"  # 为每个任务生成唯一ID
 
-            position = i % self.max_concurrency
-
-            task = asyncio.create_task(self.download_file(url, local_path, position=position))
+            task = asyncio.create_task(self.download_file(url, local_path, task_id))
             tasks.append((filename, task))
 
         results = {}
         for filename, task in tasks:
-            success = await task
-            results[filename] = success
-            if not success:
-                self.failed_files.add(filename)
+            try:
+                results[filename] = await task
+            except Exception as e:
+                logger.error(f'下载文件 {filename} 时发生错误: {str(e)}')
+                results[filename] = False
 
-        if self.global_pbar:
-            self.global_pbar.close()
-            self.global_pbar = None
+        if self.session and not self.session.closed:
+            await self.session.close()
 
-        success_count = sum(1 for success in results.values() if success)
-        logger.info(f'下载完成: 成功 {success_count}/{len(file_list)} 个文件')
-
-        self.download_results.update(results)
         return results
 
     async def retry_failed_files(

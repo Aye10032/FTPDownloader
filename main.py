@@ -17,6 +17,7 @@ from utils.md5 import verify_md5
 @click.option('--username', '-u', type=str, default='anonymous')
 @click.option('--password', '-p', type=str, default='')
 @click.option('--concurrency', type=int, default=3, help='最大并发下载数')
+@click.option('--timeout', type=int, default=30, help='最大连接时长，单位为秒')
 @click.option('--md5', is_flag=True, help='是否进行md5校验', default=False)
 @click.option('--prefix', type=str, help='前缀筛选')
 @click.option('--suffix', type=str, help='后缀筛选')
@@ -27,6 +28,7 @@ def download(
     username: str,
     password: str,
     concurrency: int,
+    timeout: int,
     md5: bool,
     prefix: Optional[str] = None,
     suffix: Optional[str] = None,
@@ -67,6 +69,7 @@ def download(
             file_list=list(missed_files),
             local_dir=local_path,
             max_concurrency=concurrency,
+            timeout=timeout,
         )
 
     if missed_files:
