@@ -3,4 +3,20 @@ name = "ftpdownloader"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "aiohttp>=3.11.14",
+    "click>=8.1.8",
+    "loguru>=0.7.3",
+    "tqdm>=4.67.1",
+]
+
+[tool.ruff]
+# Allow lines to be as long as 120.
+line-length = 100
+
+[tool.ruff.format]
+# 使用单引号
+quote-style = "single"
+# 启用docstring代码片段格式化
+docstring-code-format = true
+skip-magic-trailing-comma = true
