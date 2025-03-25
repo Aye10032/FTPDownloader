@@ -1,4 +1,6 @@
 # Simple FTP download
+![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FAye10032%2FFTPDownloader%2Frefs%2Fheads%2Fmaster%2Fpyproject.toml)
+
 
 ## Install
 
