@@ -202,8 +202,7 @@ class HTTPDownloader:
 
                 return True
 
-            except Exception as e:
-                logger.error(f'下载文件异常 {url}: {str(e)}')
+            except Exception:
                 if temp_file.exists():
                     temp_file.unlink(missing_ok=True)
 
@@ -249,14 +248,9 @@ class HTTPDownloader:
 
         results = {}
         for filename, task in tasks:
-            try:
-                success = await task
-                results[filename] = success
-                if not success:
-                    self.failed_files.add(filename)
-            except Exception as e:
-                logger.error(f'下载文件 {filename} 时发生异常: {str(e)}')
-                results[filename] = False
+            success = await task
+            results[filename] = success
+            if not success:
                 self.failed_files.add(filename)
 
         if self.global_pbar:
