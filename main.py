@@ -64,7 +64,7 @@ def download(
         await download_http_files(
             base_url=f'https://{host}',
             remote_path=remote_path,
-            file_list=list(missed_files)[:10],
+            file_list=list(missed_files),
             local_dir=local_path,
             max_concurrency=concurrency,
         )
