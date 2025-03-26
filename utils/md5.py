@@ -24,11 +24,12 @@ def calculate_md5(file_path: str) -> Optional[str]:
         return None
 
 
-def read_md5_from_file(md5_file_path: str) -> Optional[str]:
+def read_md5_from_file(md5_file_path: str, md5_index: int) -> Optional[str]:
     """从 .md5 文件读取 MD5 值
 
     Args:
         md5_file_path: MD5文件
+        md5_index: MD5文件中MD5码的位置，默认为第一个字符串
 
     Returns:
         读取的MD5码
@@ -36,24 +37,25 @@ def read_md5_from_file(md5_file_path: str) -> Optional[str]:
     try:
         with open(md5_file_path, 'r') as f:
             line = f.readline().strip()
-            md5_value = line.split(' ')[-1]
+            md5_value = line.split(' ')[md5_index]
             return md5_value
     except FileNotFoundError:
         return None
 
 
-def verify_md5(file_path: str | Path, md5_file_path: str | Path) -> bool:
+def verify_md5(file_path: str | Path, md5_file_path: str | Path, md5_index: int = 0) -> bool:
     """校验文件 MD5
 
     Args:
         file_path: 待校验的原始文件
         md5_file_path: MD5文件
+        md5_index: MD5文件中MD5码的位置，默认为第一个字符串
 
     Returns:
         校验结果
     """
     calculated_md5 = calculate_md5(file_path)
-    expected_md5 = read_md5_from_file(md5_file_path)
+    expected_md5 = read_md5_from_file(md5_file_path, md5_index)
 
     if calculated_md5 is None:
         logger.error(f'错误：文件 {file_path} 未找到。')

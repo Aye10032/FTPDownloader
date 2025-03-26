@@ -19,6 +19,7 @@ from utils.md5 import verify_md5
 @click.option('--concurrency', type=int, default=3, help='最大并发下载数')
 @click.option('--timeout', type=int, default=30, help='最大连接时长，单位为秒')
 @click.option('--md5', is_flag=True, help='是否进行md5校验', default=False)
+@click.option('--md5_index', type=int, help='md5文件中md5码的位置', default=3)
 @click.option('--prefix', type=str, help='前缀筛选')
 @click.option('--suffix', type=str, help='后缀筛选')
 def download(
@@ -30,6 +31,7 @@ def download(
     concurrency: int,
     timeout: int,
     md5: bool,
+    md5_index: int,
     prefix: Optional[str] = None,
     suffix: Optional[str] = None,
 ):
@@ -77,12 +79,12 @@ def download(
 
     # 校验 MD5
     if md5:
-        gz_list = list(download_dir.glob('*.gz'))
+        md5_list = list(download_dir.glob('*.md5'))
         fail_count = 0
-        for gz_file in tqdm(gz_list, total=len(gz_list), desc='MD5校验'):
-            md5_file = download_dir / f'{gz_file.name}.md5'
-            if not verify_md5(gz_file, md5_file):
-                gz_file.unlink(missing_ok=True)
+        for md5_file in tqdm(md5_list, total=len(md5_list), desc='MD5校验'):
+            target_file = download_dir / f'{md5_file.stem}'
+            if not verify_md5(target_file, md5_file, md5_index=md5_index):
+                target_file.unlink(missing_ok=True)
                 md5_file.unlink(missing_ok=True)
                 fail_count += 1
 
