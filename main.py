@@ -19,7 +19,7 @@ from utils.md5 import verify_md5
 @click.option('--concurrency', type=int, default=3, help='最大并发下载数')
 @click.option('--timeout', type=int, default=30, help='最大连接时长，单位为秒')
 @click.option('--md5', is_flag=True, help='是否进行md5校验', default=False)
-@click.option('--md5_index', type=int, help='md5文件中md5码的位置', default=3)
+@click.option('--md5_index', type=int, help='md5文件中md5码的位置', default=0)
 @click.option('--prefix', type=str, help='前缀筛选')
 @click.option('--suffix', type=str, help='后缀筛选')
 def download(
